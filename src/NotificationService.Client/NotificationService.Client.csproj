@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>ProBonoLaw.EmailOperations.NotificationService.Client</PackageId>
     <Version>1.0.0</Version>
-    <RepositoryUrl>https://github.com/probonolaw/Probono-Law-Email-Operations</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ProBonoLaw/PBL-Email-Operations</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Description>Typed HTTP client and contracts for transmitting NotificationService notices.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
