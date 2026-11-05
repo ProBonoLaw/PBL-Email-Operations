@@ -1,0 +1,12 @@
+model = "gpt-5-codex"
+model_provider = "azure"
+model_reasoning_effort = "medium"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://YOUR-RESOURCE.openai.azure.com/openai/v1"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+
+# Copy to config.toml and set your own endpoint and local project trust entries.
+# config.toml is ignored by Git; keep the API key in your process environment.

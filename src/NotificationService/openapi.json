@@ -1,0 +1,841 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NotificationService API",
+    "version": "1.0.0",
+    "description": "Internal API. Validates a notice, assigns id/read/createdAt, persists it in Cosmos DB, then broadcasts to Web PubSub group USER_<oid>. No application authentication; access is restricted by the internal network. A failed broadcast can leave a persisted notice. Retries can conflict; clients should not retry automatically."
+  },
+  "servers": [
+    {
+      "url": "http://notification-service.email-operations.svc.cluster.local"
+    }
+  ],
+  "paths": {
+    "/api/sendNotice": {
+      "post": {
+        "operationId": "sendNotice",
+        "summary": "Persist and broadcast a notification",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendNoticeRequest"
+              },
+              "example": {
+                "oid": "client-object-id",
+                "notificationType": "INGESTION",
+                "data": {
+                  "accountId": "account-id",
+                  "filepath": "/file.pdf",
+                  "status": "PRELIMINARY"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Persisted and broadcast successfully. No response body."
+          },
+          "400": {
+            "description": "Invalid JSON or invalid notice payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "Invalid request payload."
+              }
+            }
+          },
+          "500": {
+            "description": "Persistence or broadcast failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "health",
+        "summary": "Process health probe",
+        "responses": {
+          "200": {
+            "description": "Process is running. No response body."
+          }
+        }
+      }
+    },
+    "/openapi/v1.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "summary": "Get this OpenAPI document",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "WorkflowStatus": {
+        "type": "string",
+        "enum": [
+          "STARTED",
+          "SUCCESS",
+          "FAILED"
+        ]
+      },
+      "IngestionStatus": {
+        "type": "string",
+        "enum": [
+          "STARTED",
+          "SUCCESS",
+          "FAILED",
+          "PRELIMINARY",
+          "EVIDENCE_EXTRACTION"
+        ],
+        "description": "PRELIMINARY: general data ingestion completed. EVIDENCE_EXTRACTION: evidence extraction process completed."
+      },
+      "ArgumentStatus": {
+        "type": "string",
+        "enum": [
+          "STARTED",
+          "INITIAL_ARGUMENT",
+          "COUNTER_ARGUMENT",
+          "FINAL_ARGUMENT",
+          "FACT_VALIDATION",
+          "REVISION",
+          "SUCCESS",
+          "FAILED"
+        ]
+      },
+      "AlertStatus": {
+        "type": "string",
+        "enum": [
+          "FEEDBACK_REQUIRED"
+        ]
+      },
+      "DeclarationData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "requestText": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "declarationUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "accountId",
+          "sessionId",
+          "status",
+          "declarationUrl"
+        ]
+      },
+      "TimelineBuilderData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "requestText": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "sessionId",
+          "status"
+        ]
+      },
+      "ArgumentBuilderData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArgumentStatus"
+          },
+          "requestText": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "sessionId",
+          "status"
+        ]
+      },
+      "DocumentData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "filepath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "accountId",
+          "status",
+          "filepath"
+        ]
+      },
+      "IngestionData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IngestionStatus"
+          },
+          "filepath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "accountId",
+          "status",
+          "filepath"
+        ]
+      },
+      "CaseData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          }
+        },
+        "required": [
+          "accountId",
+          "status"
+        ]
+      },
+      "AlertData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              }
+            ]
+          },
+          "clientFeedbackRequestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "markdownPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertStatus"
+          }
+        },
+        "required": [
+          "accountId",
+          "sourceId",
+          "clientFeedbackRequestId",
+          "markdownPath",
+          "status"
+        ]
+      },
+      "DeclarationNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "DECLARATION"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeclarationData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "ArgumentBuilderNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "ARGUMENT_BUILDER"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArgumentBuilderData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "TimelineBuilderNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "TIMELINE_BUILDER"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/TimelineBuilderData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "DocumentIngestionNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "INGESTION"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/IngestionData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "DocumentEgestionNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "EGESTION"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/DocumentData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "CaseCreatedNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "CASE_CREATED"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/CaseData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "CaseDeletedNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "CASE_DELETED"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/CaseData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "AlertNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "ALERT"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/AlertData"
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "ChatMessageNotice": {
+        "type": "object",
+        "required": [
+          "oid",
+          "notificationType",
+          "data"
+        ],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 0
+              },
+              {
+                "type": "string",
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional. Omitted, null or empty generates a UUID; supplied IDs must have at least five characters."
+          },
+          "notificationType": {
+            "type": "string",
+            "enum": [
+              "CHAT_MESSAGE"
+            ]
+          },
+          "data": {},
+          "read": {
+            "type": "boolean",
+            "description": "Overwritten with false by the service."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Overwritten with the current UTC time by the service."
+          }
+        }
+      },
+      "SendNoticeRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/DeclarationNotice"
+          },
+          {
+            "$ref": "#/components/schemas/ArgumentBuilderNotice"
+          },
+          {
+            "$ref": "#/components/schemas/TimelineBuilderNotice"
+          },
+          {
+            "$ref": "#/components/schemas/DocumentIngestionNotice"
+          },
+          {
+            "$ref": "#/components/schemas/DocumentEgestionNotice"
+          },
+          {
+            "$ref": "#/components/schemas/CaseCreatedNotice"
+          },
+          {
+            "$ref": "#/components/schemas/CaseDeletedNotice"
+          },
+          {
+            "$ref": "#/components/schemas/AlertNotice"
+          },
+          {
+            "$ref": "#/components/schemas/ChatMessageNotice"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "notificationType",
+          "mapping": {
+            "DECLARATION": "#/components/schemas/DeclarationNotice",
+            "ARGUMENT_BUILDER": "#/components/schemas/ArgumentBuilderNotice",
+            "TIMELINE_BUILDER": "#/components/schemas/TimelineBuilderNotice",
+            "INGESTION": "#/components/schemas/DocumentIngestionNotice",
+            "EGESTION": "#/components/schemas/DocumentEgestionNotice",
+            "CASE_CREATED": "#/components/schemas/CaseCreatedNotice",
+            "CASE_DELETED": "#/components/schemas/CaseDeletedNotice",
+            "ALERT": "#/components/schemas/AlertNotice",
+            "CHAT_MESSAGE": "#/components/schemas/ChatMessageNotice"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

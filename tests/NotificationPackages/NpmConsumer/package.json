@@ -1,0 +1,5 @@
+{
+  "name": "notification-package-consumer-check",
+  "private": true,
+  "type": "module"
+}

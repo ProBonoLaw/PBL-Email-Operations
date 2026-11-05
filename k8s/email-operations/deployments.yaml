@@ -1,0 +1,192 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: communication-hub
+  namespace: email-operations
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: communication-hub }
+  template:
+    metadata:
+      labels: { app: communication-hub, azure.workload.identity/use: "true" }
+      annotations:
+        checksum/email-branding: "<email-branding-checksum>"
+    spec:
+      serviceAccountName: email-operations
+      terminationGracePeriodSeconds: 240
+      containers:
+        - name: worker
+          image: <registry>/email-operations:latest
+          envFrom:
+            - configMapRef: { name: email-operations-config }
+            - configMapRef: { name: email-branding }
+          env:
+            - { name: ROLE, value: communication-hub }
+            - { name: EVENTHUB_NAME, value: "<communication-eventhub-name>" }
+            - { name: EVENTHUB_CONSUMER_GROUP, value: "<communication-consumer-group>" }
+          volumeMounts:
+            - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: appsettings
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: email-operations-appsettings }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-data-ingestion
+  namespace: email-operations
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: email-data-ingestion }
+  template:
+    metadata:
+      labels: { app: email-data-ingestion, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: email-operations
+      terminationGracePeriodSeconds: 240
+      containers:
+        - name: worker
+          image: <registry>/email-operations:latest
+          envFrom:
+            - configMapRef: { name: email-operations-config }
+          env:
+            - { name: ROLE, value: email-data-ingestion }
+            - { name: EVENTHUB_NAME, value: email-operations }
+            - { name: EVENTHUB_CONSUMER_GROUP, value: email-operations-data-ingestion }
+          volumeMounts:
+            - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: appsettings
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: email-operations-appsettings }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-declaration-response
+  namespace: email-operations
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: email-declaration-response }
+  template:
+    metadata:
+      labels: { app: email-declaration-response, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: email-operations
+      terminationGracePeriodSeconds: 240
+      containers:
+        - name: worker
+          image: <registry>/email-operations:latest
+          envFrom:
+            - configMapRef: { name: email-operations-config }
+          env:
+            - { name: ROLE, value: email-declaration-response }
+            - { name: EVENTHUB_NAME, value: aimie-response-queue }
+            - { name: EVENTHUB_CONSUMER_GROUP, value: email-operations-declaration-response }
+          volumeMounts:
+            - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: appsettings
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: email-operations-appsettings }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-argument-builder
+  namespace: email-operations
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: email-argument-builder }
+  template:
+    metadata:
+      labels: { app: email-argument-builder, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: email-operations
+      terminationGracePeriodSeconds: 240
+      containers:
+        - name: worker
+          image: <registry>/email-operations:latest
+          envFrom:
+            - configMapRef: { name: email-operations-config }
+          env:
+            - { name: ROLE, value: argument-builder }
+            - { name: EVENTHUB_NAME, value: email-operations }
+            - { name: EVENTHUB_CONSUMER_GROUP, value: email-operations-argument-builder }
+          volumeMounts:
+            - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: appsettings
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: email-operations-appsettings }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-timeline-builder
+  namespace: email-operations
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: email-timeline-builder }
+  template:
+    metadata:
+      labels: { app: email-timeline-builder, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: email-operations
+      terminationGracePeriodSeconds: 240
+      containers:
+        - name: worker
+          image: <registry>/email-operations:latest
+          envFrom:
+            - configMapRef: { name: email-operations-config }
+          env:
+            - { name: ROLE, value: timeline-builder }
+            - { name: EVENTHUB_NAME, value: email-operations }
+            - { name: EVENTHUB_CONSUMER_GROUP, value: email-operations-timeline-builder }
+          volumeMounts:
+            - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: appsettings
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: email-operations-appsettings }

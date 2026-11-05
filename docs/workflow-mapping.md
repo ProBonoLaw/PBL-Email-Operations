@@ -1,0 +1,24 @@
+# Test Logic App workflow mapping
+
+The Logic App to inspect is selected by `AZURE_SUBSCRIPTION_ID`, `LOGIC_APP_RESOURCE_GROUP`, and `LOGIC_APP_NAME` in private deployment configuration. This mapping describes the workflow contracts implemented by the workers.
+
+| Workflow | Test definition | .NET implementation |
+| --- | --- | --- |
+| `Communication-Hub` | HTTP request trigger; Cosmos queries and Office 365 email actions | Consumes the router's Event Hubs event, queries Cosmos, sends through Graph |
+| `Email-Message-Identification` | 15-second recurrence; Cosmos account query, Graph mailbox operations, Event Hubs sends | One-minute CronJob polls Cosmos and Graph once, normalizes declaration and QA input, publishes to AIMIE, marks messages read |
+| `Email-Data-Ingestion` | HTTP request trigger; Graph reads/reply, OneDrive conversion, SharePoint storage, Cosmos query | Consumes the router's Event Hubs event, performs Graph reads, conversion, storage, and reply |
+| `Email-Declaration-Response` | Event Hubs trigger on `aimie-response-queue`; Cosmos, Graph reply/send, SharePoint sharing link | Consumes declaration and QA results, creates PDFs from AIMIE's private indexed Markdown and exhibit content or links existing SharePoint attachments, and replies or sends mail through Graph |
+| Argument builder email adapter | `Argument-Builder-Generator` has an HTTP request trigger; no matching email adapter was found in this export | Graph content lookup and AIMIE request publication are implemented; Test event producer and reply route remain unmapped |
+| Timeline builder email adapter | `Timeline-Builder-Generator` has an HTTP request trigger; no matching email adapter was found in this export | Graph content lookup and AIMIE request publication are implemented; Test event producer and reply route remain unmapped |
+
+The `State-Events-Router` consumes `state-events` and calls `Communication-Hub` for `eventKind=Communication`. The `Email-Operations-Router` consumes `email-operations` and calls `Email-Data-Ingestion` for `eventKind=EmailProcessing`. `Email-Declaration-Response` consumes `aimie-response-queue`. The identification workflow sends declaration and QA email notifications to `declaration-processing-requests` and ingestion events to `email-operations`.
+
+The Kubernetes AIMIE Operations workers consume normalized `declaration`, `qa`, `argument-builder`, and `timeline-builder` requests on `aimie-request-queue`, each with `accountId` and `input` or `question`. Email Operations reads the full Graph message body before publishing generation requests and keeps ingestion events on `email-operations`. The Test identification workflow itself emits only `accountId`, `messageId`, and `type` for declaration and QA. The Test definitions do not establish a source event for the builder email adapters. The local settings use `email-operations` as their input hub and separate consumer groups.
+
+## `parameters.json` and managed connections
+
+The Test `connections.json` maps `office365`, `onedriveforbusiness`, and `sharepointonline` to `@parameters('<name>-ConnectionRuntimeUrl')` and `@parameters('<name>-Authentication')`. In `parameters.json`, each runtime URL is an `@appsetting('<name>-ConnectionRuntimeUrl')` reference and each authentication object selects `ManagedServiceIdentity`. The Office 365 and SharePoint runtime URL app settings are present; `onedriveforbusiness-ConnectionRuntimeUrl` is absent. The Office 365 setting also differs from the live connected resource. All three managed connection resources report `Connected`, so the local generator writes their current runtime URLs into a separate resolved settings file without changing the Test app. The missing deployed OneDrive app setting matches the runtime's `Email-Data-Ingestion` unhealthy status.
+
+`Communication-Hub` uses Office 365 managed connector actions to send email. `Email-Data-Ingestion` uses OneDrive and SharePoint connector actions, plus Graph HTTP actions. `Email-Declaration-Response` uses SharePoint and Graph HTTP actions. The global `azureFunctionOperation-*-TriggerUrl` entries in `parameters.json` point to other Functions, including AIMIE generation Functions; the four email workflows above do not reference them. The .NET worker replaces these connector operations with Graph calls and sends AIMIE generation requests through `aimie-request-queue`. Its communication and declaration response email templates were exported from the Test workflows and retain their account-specific expressions.
+
+Configure `GRAPH_SENDER_USER` and the conversion drive account for the Graph application's tenant. Connected Office 365, OneDrive, and SharePoint accounts may belong to different tenants; verify access before replacing connector actions with Graph. Actual connector identities and environment diagnostics belong in private operational records.

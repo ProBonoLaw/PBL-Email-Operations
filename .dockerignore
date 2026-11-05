@@ -1,0 +1,8 @@
+**/bin
+**/obj
+.git
+.local
+.devcontainer
+.vscode
+tests
+config.toml

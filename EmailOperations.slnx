@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EmailOperations.Core/EmailOperations.Core.csproj" />
+    <Project Path="src/EmailOperations/EmailOperations.csproj" />
+    <Project Path="src/NotificationService/NotificationService.csproj" />
+    <Project Path="src/NotificationService.Client/NotificationService.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EmailOperations.Tests/EmailOperations.Tests.csproj" />
+    <Project Path="tests/NotificationService.Tests/NotificationService.Tests.csproj" />
+    <Project Path="tests/NotificationService.Client.Tests/NotificationService.Client.Tests.csproj" />
+  </Folder>
+</Solution>

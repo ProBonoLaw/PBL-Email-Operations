@@ -1,0 +1,66 @@
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: notification-appsettings
+  namespace: email-operations
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    clientID: "<email-workload-identity-client-id>"
+    keyvaultName: "<key-vault-name>"
+    tenantId: "<azure-tenant-id>"
+    objects: |
+      array:
+        - |
+          objectName: notification-appsettings
+          objectType: secret
+          objectAlias: notification-appsettings.json
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: email-operations
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: notification-service }
+  template:
+    metadata:
+      labels: { app: notification-service, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: email-operations
+      containers:
+        - name: api
+          image: <registry>/notification-service:latest
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+          volumeMounts:
+            - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: appsettings
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: notification-appsettings }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: email-operations
+spec:
+  type: ClusterIP
+  selector: { app: notification-service }
+  ports:
+    - { name: http, port: 80, targetPort: http }

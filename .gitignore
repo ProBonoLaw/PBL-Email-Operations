@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.local/
+.devcontainer/.env
+config.toml
+.env
+.env.*
+!.env.example
+.vs/
+*.user
+**/node_modules/
+artifacts/
+*.tgz
+packages/notification-client/openapi.json

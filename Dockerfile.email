@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.7
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /source
+COPY NuGet.Config ./
+COPY src/EmailOperations.Core/EmailOperations.Core.csproj src/EmailOperations.Core/
+COPY src/EmailOperations/EmailOperations.csproj src/EmailOperations/
+RUN dotnet restore src/EmailOperations/EmailOperations.csproj --configfile NuGet.Config
+COPY src/EmailOperations.Core/ src/EmailOperations.Core/
+COPY src/EmailOperations/ src/EmailOperations/
+RUN dotnet publish src/EmailOperations/EmailOperations.csproj -c Release --no-restore -o /app
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0
+WORKDIR /app
+COPY --from=build /app ./
+USER $APP_UID
+ENTRYPOINT ["dotnet", "EmailOperations.dll"]

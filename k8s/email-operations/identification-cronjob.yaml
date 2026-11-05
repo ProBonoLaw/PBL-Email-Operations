@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: email-message-identification
+  namespace: email-operations
+spec:
+  schedule: "* * * * *"
+  startingDeadlineSeconds: 30
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      completions: 1
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: email-message-identification
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: email-operations
+          restartPolicy: Never
+          containers:
+            - name: worker
+              image: <registry>/email-operations:latest
+              envFrom:
+                - configMapRef: { name: email-operations-config }
+              env:
+                - { name: ROLE, value: email-message-identification }
+              volumeMounts:
+                - { name: appsettings, mountPath: /mnt/keyvault, readOnly: true }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+          volumes:
+            - name: appsettings
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes: { secretProviderClass: email-operations-appsettings }

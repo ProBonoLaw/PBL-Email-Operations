@@ -1,0 +1,151 @@
+name: Build and test Email Operations
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ci.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'packages/**'
+      - 'Dockerfile.email'
+      - 'Dockerfile.notification'
+      - 'NuGet.Config'
+      - 'EmailOperations.slnx'
+      - 'k8s/**'
+      - 'scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test EmailOperations.slnx --configuration Release
+
+  notification-client-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: packages/notification-client/package-lock.json
+      - run: npm ci
+        working-directory: packages/notification-client
+      - run: node --test scripts/*.test.mjs
+      - run: npm test && npm run test:types
+        working-directory: packages/notification-client
+      - name: Pack NuGet notification client
+        run: dotnet pack src/NotificationService.Client/NotificationService.Client.csproj -c Release -o artifacts/packages
+      - name: Pack NPM notification client
+        run: npm pack --pack-destination ../../artifacts/packages
+        working-directory: packages/notification-client
+      - name: Validate packed clients and OpenAPI specifications
+        run: bash scripts/check-notification-packages.sh
+      - name: Upload validated notification clients
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-client-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.tgz
+          if-no-files-found: error
+
+  image-check:
+    if: github.event_name == 'pull_request'
+    needs: [test, notification-client-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.email
+          push: false
+          tags: email-operations:pr-${{ github.event.pull_request.number }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.notification
+          push: false
+          tags: notification-service:pr-${{ github.event.pull_request.number }}
+
+  image:
+    if: vars.DEPLOYMENT_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, notification-client-packages]
+    runs-on: ubuntu-latest
+    environment: test
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Load private deployment settings
+        env:
+          DEPLOYMENT_CONFIG: ${{ secrets.DEPLOYMENT_CONFIG }}
+        run: |
+          test -n "$DEPLOYMENT_CONFIG" || { echo 'DEPLOYMENT_CONFIG is required'; exit 1; }
+          bash scripts/deployment-settings.sh --github-env
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - run: az acr login --name "$ACR_NAME"
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.email
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/email-operations:sha-${{ github.sha }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.notification
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/notification-service:sha-${{ github.sha }}
+
+  deploy-test:
+    if: vars.DEPLOYMENT_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: image
+    runs-on: ubuntu-latest
+    environment: aks-test
+    concurrency:
+      group: email-operations-aks-test
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load private deployment settings
+        env:
+          DEPLOYMENT_CONFIG: ${{ secrets.DEPLOYMENT_CONFIG }}
+        run: |
+          test -n "$DEPLOYMENT_CONFIG" || { echo 'DEPLOYMENT_CONFIG is required'; exit 1; }
+          bash scripts/deployment-settings.sh --github-env
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy and activate AKS test
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+          ACTIVATE: '1'
+        run: bash scripts/deploy-aks-test.sh

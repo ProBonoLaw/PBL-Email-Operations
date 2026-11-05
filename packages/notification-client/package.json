@@ -1,0 +1,41 @@
+{
+  "name": "@probonolaw/notification-client",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/probonolaw/Probono-Law-Email-Operations.git",
+    "directory": "packages/notification-client"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "description": "Typed HTTP client for transmitting NotificationService notices",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "openapi.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test index.test.js check-published-version.test.js",
+    "test:types": "tsc --strict --noEmit --module nodenext --target es2022 types.test.ts",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../src/NotificationService/openapi.json', 'openapi.json')\""
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "12.1.0",
+    "@types/node": "22.20.5",
+    "typescript": "^5.9.3"
+  }
+}

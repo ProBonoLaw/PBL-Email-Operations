@@ -1,0 +1,63 @@
+name: Release Email Operations to AKS production
+
+on:
+  workflow_dispatch:
+    inputs:
+      activate:
+        description: Start workers and notification API after applying manifests
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: vars.DEPLOYMENT_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: aks-prod
+    concurrency:
+      group: email-operations-aks-prod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test EmailOperations.slnx --configuration Release
+      - uses: docker/setup-buildx-action@v4
+      - name: Load private deployment settings
+        env:
+          DEPLOYMENT_CONFIG: ${{ secrets.DEPLOYMENT_CONFIG }}
+        run: |
+          test -n "$DEPLOYMENT_CONFIG" || { echo 'DEPLOYMENT_CONFIG is required'; exit 1; }
+          bash scripts/deployment-settings.sh --github-env
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Check production subscription
+        run: test "$(az account show --query id -o tsv)" = "$AZURE_SUBSCRIPTION_ID"
+      - run: az acr login --name "$ACR_NAME"
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.email
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/email-operations:sha-${{ github.sha }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.notification
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/notification-service:sha-${{ github.sha }}
+      - name: Apply production manifests
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+          ACTIVATE: ${{ inputs.activate && '1' || '0' }}
+        run: bash scripts/deploy-aks-prod.sh

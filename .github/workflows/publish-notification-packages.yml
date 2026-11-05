@@ -1,0 +1,95 @@
+name: Publish Notification clients to GitHub Packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-notification-packages.yml'
+      - 'src/NotificationService.Client/**'
+      - 'src/NotificationService/openapi.json'
+      - 'packages/notification-client/**'
+      - 'scripts/check-notification-packages.sh'
+      - 'scripts/configure-package-publication.mjs'
+      - 'tests/NotificationPackages/**'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: vars.PACKAGE_PUBLISHING_ENABLED == 'true' && ((github.event_name != 'release' && github.ref == 'refs/heads/main') || startsWith(github.event.release.tag_name, 'notification-v'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: notification-package-publication
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          cache: npm
+          cache-dependency-path: packages/notification-client/package-lock.json
+      - name: Configure package identities for this repository
+        env:
+          PUBLICATION_CONFIG: ${{ secrets.PUBLICATION_CONFIG }}
+        run: node scripts/configure-package-publication.mjs
+      - name: Verify package versions and optional release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const npm = JSON.parse(readFileSync('packages/notification-client/package.json', 'utf8'));
+          const project = readFileSync('src/NotificationService.Client/NotificationService.Client.csproj', 'utf8');
+          const nuget = project.match(/<Version>([^<]+)<\/Version>/)?.[1];
+          assert.equal(npm.version, nuget, 'NuGet and NPM versions must match');
+          if (process.env.RELEASE_TAG) {
+            assert.equal(process.env.RELEASE_TAG, `notification-v${npm.version}`, 'Release tag must match package versions');
+          }
+          JS
+      - run: dotnet test EmailOperations.slnx --configuration Release
+      - run: npm ci
+        working-directory: packages/notification-client
+      - run: npm test && npm run test:types
+        working-directory: packages/notification-client
+      - run: dotnet pack src/NotificationService.Client/NotificationService.Client.csproj -c Release -o artifacts/packages -p:PackageId="$NUGET_PACKAGE_ID" -p:RepositoryUrl="$PACKAGE_REPOSITORY_URL"
+      - run: npm pack --pack-destination ../../artifacts/packages
+        working-directory: packages/notification-client
+      - name: Validate packed clients and OpenAPI specifications
+        run: bash scripts/check-notification-packages.sh
+      - name: Upload validated notification clients
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-client-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.tgz
+          if-no-files-found: error
+      - name: Publish NuGet client to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push artifacts/packages/*.nupkg \
+            --source "$NUGET_SOURCE" \
+            --api-key "$GITHUB_TOKEN" --skip-duplicate
+      - name: Check whether NPM version is already published
+        id: npm-version
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node packages/notification-client/check-published-version.mjs
+      - name: Publish NPM client to GitHub Packages
+        if: steps.npm-version.outputs.exists != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish artifacts/packages/*.tgz --registry https://npm.pkg.github.com

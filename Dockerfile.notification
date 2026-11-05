@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1.7
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /source
+COPY NuGet.Config ./
+COPY src/NotificationService/NotificationService.csproj src/NotificationService/
+COPY src/NotificationService.Client/NotificationService.Client.csproj src/NotificationService.Client/
+RUN dotnet restore src/NotificationService/NotificationService.csproj --configfile NuGet.Config
+COPY src/NotificationService/ src/NotificationService/
+COPY src/NotificationService.Client/ src/NotificationService.Client/
+RUN dotnet publish src/NotificationService/NotificationService.csproj -c Release --no-restore -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app ./
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+USER $APP_UID
+ENTRYPOINT ["dotnet", "NotificationService.dll"]

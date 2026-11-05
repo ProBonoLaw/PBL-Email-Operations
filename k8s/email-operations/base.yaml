@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: email-operations
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: email-operations
+  namespace: email-operations
+  annotations:
+    azure.workload.identity/client-id: "<email-workload-identity-client-id>"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: email-operations-config
+  namespace: email-operations
+data:
+  EVENTHUB_NAMESPACE: <eventhub-namespace>.servicebus.windows.net
+  EMAIL_OPERATIONS_EVENTHUB_NAME: email-operations
+  AIMIE_REQUEST_EVENTHUB_NAME: aimie-request-queue
+  CHECKPOINT_BLOB_CONTAINER_URI: https://<storage-account>.blob.core.windows.net/email-operations-checkpoints
+  FAILED_EVENTS_BLOB_CONTAINER_URI: https://<storage-account>.blob.core.windows.net/email-operations-failed-events
+  OUTPUT_BLOB_CONTAINER_URI: https://<storage-account>.blob.core.windows.net/aimie-operations-results
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: email-operations-appsettings
+  namespace: email-operations
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    clientID: "<email-workload-identity-client-id>"
+    keyvaultName: "<key-vault-name>"
+    tenantId: "<azure-tenant-id>"
+    objects: |
+      array:
+        - |
+          objectName: email-operations-appsettings
+          objectType: secret
+          objectAlias: appsettings.json

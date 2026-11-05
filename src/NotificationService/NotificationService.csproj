@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../NotificationService.Client/NotificationService.Client.csproj" />
+    <EmbeddedResource Include="openapi.json" />
+    <PackageReference Include="Azure.Messaging.WebPubSub" Version="1.7.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.54.0" />
+    <!-- Cosmos SDK 3.x requires this package even when items are written as JSON streams. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

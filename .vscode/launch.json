@@ -1,0 +1,101 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Notification Service API (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/NotificationService/bin/Debug/net10.0/NotificationService.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build NotificationService",
+      "env": {
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.notification-aks-test.json",
+        "ASPNETCORE_URLS": "http://127.0.0.1:5080"
+      }
+    },
+    {
+      "name": "Email Operations: communication hub (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/EmailOperations/bin/Debug/net10.0/EmailOperations.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build EmailOperations",
+      "env": {
+        "ROLE": "communication-hub",
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.communication-hub.json",
+        "AZURE_TOKEN_CREDENTIALS": "AzureCliCredential",
+        "EVENTHUB_TRANSPORT_TYPE": "AmqpWebSockets"
+      }
+    },
+    {
+      "name": "Email Operations: identification (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/EmailOperations/bin/Debug/net10.0/EmailOperations.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build EmailOperations",
+      "env": {
+        "ROLE": "email-message-identification",
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.email-message-identification.json",
+        "AZURE_TOKEN_CREDENTIALS": "AzureCliCredential",
+        "EVENTHUB_TRANSPORT_TYPE": "AmqpWebSockets"
+      }
+    },
+    {
+      "name": "Email Operations: data ingestion (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/EmailOperations/bin/Debug/net10.0/EmailOperations.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build EmailOperations",
+      "env": {
+        "ROLE": "email-data-ingestion",
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.email-data-ingestion.json",
+        "AZURE_TOKEN_CREDENTIALS": "AzureCliCredential",
+        "EVENTHUB_TRANSPORT_TYPE": "AmqpWebSockets"
+      }
+    },
+    {
+      "name": "Email Operations: declaration response (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/EmailOperations/bin/Debug/net10.0/EmailOperations.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build EmailOperations",
+      "env": {
+        "ROLE": "email-declaration-response",
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.email-declaration-response.json",
+        "AZURE_TOKEN_CREDENTIALS": "AzureCliCredential",
+        "EVENTHUB_TRANSPORT_TYPE": "AmqpWebSockets"
+      }
+    },
+    {
+      "name": "Email Operations: argument builder (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/EmailOperations/bin/Debug/net10.0/EmailOperations.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build EmailOperations",
+      "env": {
+        "ROLE": "argument-builder",
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.argument-builder.json",
+        "AZURE_TOKEN_CREDENTIALS": "AzureCliCredential",
+        "EVENTHUB_TRANSPORT_TYPE": "AmqpWebSockets"
+      }
+    },
+    {
+      "name": "Email Operations: timeline builder (Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/EmailOperations/bin/Debug/net10.0/EmailOperations.dll",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build EmailOperations",
+      "env": {
+        "ROLE": "timeline-builder",
+        "APPSETTINGS_FILE": "${workspaceFolder}/.local/appsettings.timeline-builder.json",
+        "AZURE_TOKEN_CREDENTIALS": "AzureCliCredential",
+        "EVENTHUB_TRANSPORT_TYPE": "AmqpWebSockets"
+      }
+    }
+  ]
+}
