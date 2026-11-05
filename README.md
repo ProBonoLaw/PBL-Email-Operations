@@ -12,6 +12,12 @@ This repo contains .NET 10 email workers and an internal .NET 10 notification AP
 
 The Test Logic App definitions and connection mapping are described in [workflow mapping](docs/workflow-mapping.md). The Test workflows use Office 365, OneDrive, and SharePoint managed connector actions. This worker implements their mail and file operations with Graph; it does not invoke those connectors or the Logic App's AIMIE Functions.
 
+## Contributing
+
+Open issues and pull requests in this ProBonoLaw repository, and target `main`. Before submitting code changes, run the .NET and client checks described below, plus `node --test scripts/*.test.mjs` from the repository root. These checks use local fixtures and do not require Azure credentials. Pull requests also build both container images.
+
+Keep personal `config.toml`, `.env` files, and deployment settings local. Examples should use fictional addresses and resource names. Deployment and package publication are opt-in; contributing to this repository requires neither.
+
 ## VS Code local run
 
 Install the .NET 10 SDK and Node.js 22, then run:
