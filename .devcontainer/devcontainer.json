@@ -23,7 +23,7 @@
 			"extensions": ["ms-dotnettools.csharp", "openai.chatgpt"]
 		}
 	},
-	"initializeCommand": "umask 077; mkdir -p .local && if [ ! -f .local/devcontainer.env ]; then cp .devcontainer/.env.example .local/devcontainer.env; fi",
+	"initializeCommand": "umask 077; mkdir -p .local && if [ ! -e .local/devcontainer.env ] && [ ! -L .local/devcontainer.env ]; then cp .devcontainer/.env.example .local/devcontainer.env; fi",
 	"runArgs": [
         "--env-file",
         ".local/devcontainer.env"
