@@ -16,11 +16,16 @@
 	//		}
 	// }
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "dotnet restore",
+	"postCreateCommand": "if [ -f config.toml ] && [ ! -e \"$HOME/.codex/config.toml\" ] && [ ! -L \"$HOME/.codex/config.toml\" ]; then umask 077; mkdir -p \"$HOME/.codex\" && cp config.toml \"$HOME/.codex/config.toml\"; fi",
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
-			"extensions": ["ms-dotnettools.csharp"]
+			"extensions": ["ms-dotnettools.csharp", "openai.chatgpt"]
 		}
 	},
+	"initializeCommand": "umask 077; mkdir -p .local && if [ ! -f .local/devcontainer.env ]; then cp .devcontainer/.env.example .local/devcontainer.env; fi",
+	"runArgs": [
+        "--env-file",
+        ".local/devcontainer.env"
+    ],
 }
