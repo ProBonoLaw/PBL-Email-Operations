@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   deploy:
-    if: vars.DEPLOYMENT_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    if: ${{ vars.TEST_ENVIRONMENT_ENABLED == 'true' && (vars.DEPLOYMENT_ENABLED == 'true' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     environment: aks-test
     concurrency:
