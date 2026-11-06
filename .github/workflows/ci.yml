@@ -85,7 +85,7 @@ jobs:
           tags: notification-service:pr-${{ github.event.pull_request.number }}
 
   image:
-    if: vars.DEPLOYMENT_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ vars.TEST_ENVIRONMENT_ENABLED == 'true' && (vars.DEPLOYMENT_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     needs: [test, notification-client-packages]
     runs-on: ubuntu-latest
     environment: test
@@ -121,7 +121,7 @@ jobs:
           tags: ${{ env.ACR_LOGIN_SERVER }}/notification-service:sha-${{ github.sha }}
 
   deploy-test:
-    if: vars.DEPLOYMENT_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ vars.TEST_ENVIRONMENT_ENABLED == 'true' && (vars.DEPLOYMENT_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     needs: image
     runs-on: ubuntu-latest
     environment: aks-test
